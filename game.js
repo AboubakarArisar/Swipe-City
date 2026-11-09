@@ -202,7 +202,8 @@ faceCanvas.width = faceCanvas.height = 256;
 const faceTex = new THREE.CanvasTexture(faceCanvas);
 faceTex.encoding = THREE.sRGBEncoding;
 const faceMat = std({ map: faceTex, roughness: 0.7 });
-let faceImg = null; // custom photo, or a default face image from assets/
+let faceImg = null;     // what is painted now: custom photo, default face, or nothing
+let defaultFace = null; // assets/characters/face.png, when present
 
 function paintFace() {
   const c = faceCanvas.getContext('2d'), s = 256;
@@ -245,7 +246,7 @@ function applyLook() {
 
 // keep = true stores the photo as this player's face (cropped to 256px, in this browser only).
 function setFaceImage(src, keep) {
-  if (!src) { faceImg = null; look.face = null; store.set('swipecity.look', look); return paintFace(); }
+  if (!src) { faceImg = defaultFace; look.face = null; store.set('swipecity.look', look); return paintFace(); }
   const im = new Image();
   im.onload = () => {
     faceImg = im;
@@ -532,7 +533,7 @@ updates.push(() => {
     $('title').hidden = state !== 'title';
     $('over').hidden = state !== 'over';
     $('paused').hidden = state !== 'paused';
-    $('hud').hidden = state === 'title';
+    $('hud').hidden = state === 'title' || state === 'over';
     if (state === 'over') {
       $('final').textContent = `${Math.floor(dist).toLocaleString()}m · ${coins} coins · score ${score().toLocaleString()}`;
       $('bestLine').textContent = newBest ? 'New best!' : `Best ${best.toLocaleString()}`;
@@ -588,3 +589,41 @@ $('facePhoto').onchange = (e) => {
   if (f && f.type.startsWith('image/')) setFaceImage(URL.createObjectURL(f), true);
 };
 $('faceClear').onclick = () => { $('facePhoto').value = ''; setFaceImage(null); };
+
+// ---------- optional art: files dropped into assets/ replace the placeholders ----------
+// File names must match ASSETS.md. Missing files are ignored and the placeholder stays.
+// ponytail: textures only load over http(s) (browsers block WebGL textures from file://),
+// so opening index.html directly always shows placeholders. GLB models are not wired yet;
+// add GLTFLoader when a real model exists.
+
+function useTexture(path, apply) {
+  if (location.protocol === 'file:') return;
+  new THREE.TextureLoader().load(path, (t) => {
+    t.encoding = THREE.sRGBEncoding;
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    apply(t);
+  }, undefined, () => {});
+}
+const setMap = (mat, t) => { mat.map = t; mat.needsUpdate = true; };
+
+useTexture('assets/world/roof.png', (t) => { t.repeat.copy(roofTex.repeat); setMap(roofMat, t); });
+useTexture('assets/world/facade.png', (t) => {
+  const far = t.clone();
+  far.repeat.copy(cityTex.repeat);
+  far.needsUpdate = true;
+  t.repeat.copy(wallTex.repeat);
+  setMap(wallMat, t);
+  for (const m of cityMats) setMap(m, far);
+});
+useTexture('assets/world/sky.png', (t) => { scene.background = t; });
+useTexture('assets/world/billboard.png', (t) => setMap(billMat, t));
+
+const logoIm = new Image();
+logoIm.onload = () => { $('logo').src = logoIm.src; $('logo').hidden = false; $('logoText').hidden = true; };
+logoIm.src = 'assets/ui/logo.png';
+
+if (location.protocol !== 'file:') {
+  const f = new Image();
+  f.onload = () => { defaultFace = f; if (!look.face) { faceImg = f; paintFace(); } };
+  f.src = 'assets/characters/face.png';
+}
