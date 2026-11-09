@@ -70,7 +70,7 @@ const roofTex = canvasTex(256, 256, (c, w, h) => {
   c.lineWidth = 2;
   c.strokeRect(1, 1, w - 2, h - 2);
 });
-roofTex.repeat.set(3, 10);
+roofTex.repeat.set(2, 8);
 
 const wallTex = canvasTex(256, 256, (c, w, h) => {
   c.fillStyle = '#4a424a';
@@ -83,7 +83,7 @@ const wallTex = canvasTex(256, 256, (c, w, h) => {
 });
 wallTex.repeat.set(2, 8);
 const cityTex = wallTex.clone();
-cityTex.repeat.set(3, 10);
+cityTex.repeat.set(1, 3);
 cityTex.needsUpdate = true;
 
 const std = (o) => new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.85 }, o));
@@ -381,7 +381,139 @@ updates.push((dt, t) => {
   const title = state === 'title', ck = Math.min(1, dt * 5);
   runner.position.set(pl.x, pl.y, 0);
   runner.rotation.y += ((title ? 0 : Math.PI) - runner.rotation.y) * Math.min(1, dt * 8);
-  camera.position.lerp(title ? v3.set(0, 1.7, 3.4) : v3.set(pl.x * 0.5, 4.4, 7.5), ck);
+  camera.position.lerp(title ? v3.set(0, 1.6, 2.7) : v3.set(pl.x * 0.5, 4.4, 7.5), ck);
   camLook.lerp(title ? v3.set(0, 1.15, 0) : v3.set(pl.x * 0.3, 1.2, -8), ck);
   camera.lookAt(camLook);
+});
+
+// ---------- obstacles, coins, power-ups ----------
+
+const metalMat = std({ color: 0xb9bec4, roughness: 0.5, metalness: 0.4 });
+const darkMat = std({ color: 0x2c2f36 });
+const brickMat = std({ color: 0x9a4b3c });
+const tankMat = std({ color: 0x7a4f36 });
+const hutMat = std({ color: 0xb8ada0 });
+const billTex = canvasTex(128, 128, (c, w, h) => {
+  c.fillStyle = '#1f7a8c'; c.fillRect(0, 0, w, h);
+  c.fillStyle = '#ffd166'; c.beginPath(); c.arc(40, 78, 30, 0, 7); c.fill();
+  c.fillStyle = '#ef476f'; c.fillRect(74, 24, 38, 82);
+});
+const billMat = std({ map: billTex });
+const pipeGeo = new THREE.CylinderGeometry(0.3, 0.3, 1.9, 16).rotateZ(Math.PI / 2);
+const fanGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.06, 20);
+const tankGeo = new THREE.CylinderGeometry(0.85, 0.85, 2, 20);
+const coneGeo = new THREE.ConeGeometry(0.95, 0.5, 20);
+
+function group(...meshes) {
+  const g = new THREE.Group();
+  for (const m of meshes) { m.castShadow = true; g.add(m); }
+  return g;
+}
+function at(geo, mat, x, y, z) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  return m;
+}
+
+// Two looks per type. low = jump over, high = slide under, block = change lane.
+const OBSTACLES = {
+  low: [
+    () => group(box(metalMat, 1.7, 0.75, 1, 0, 0.375, 0), at(fanGeo, darkMat, 0, 0.77, 0)),
+    () => group(box(brickMat, 1.8, 0.68, 0.45, 0, 0.34, 0), box(metalMat, 1.9, 0.08, 0.55, 0, 0.72, 0)),
+  ],
+  high: [
+    () => group(box(darkMat, 0.12, 2.6, 0.12, -0.88, 1.3, 0), box(darkMat, 0.12, 2.6, 0.12, 0.88, 1.3, 0),
+      box(billMat, 1.9, 1.3, 0.12, 0, 1.87, 0)),
+    () => group(box(darkMat, 0.12, 2.2, 0.12, -0.88, 1.1, 0), box(darkMat, 0.12, 2.2, 0.12, 0.88, 1.1, 0),
+      at(pipeGeo, metalMat, 0, 1.52, 0), at(pipeGeo, metalMat, 0, 2.15, 0)),
+  ],
+  block: [
+    () => group(box(darkMat, 1.5, 0.5, 1.5, 0, 0.25, 0), at(tankGeo, tankMat, 0, 1.5, 0), at(coneGeo, darkMat, 0, 2.75, 0)),
+    () => group(box(hutMat, 1.8, 2.6, 1.6, 0, 1.3, 0), box(darkMat, 0.7, 1.6, 0.06, 0, 0.8, 0.81),
+      box(metalMat, 2, 0.1, 1.8, 0, 2.65, 0)),
+  ],
+};
+// Vertical span [y0, y1] the player's body must not overlap.
+const SPAN = { low: [0, 0.78], high: [1.15, 3.2], block: [0, 3.2] };
+
+const coinGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.07, 20).rotateX(Math.PI / 2);
+const coinMat = std({ color: 0xffc933, roughness: 0.35, metalness: 0.5, emissive: 0x6b4500 });
+const ITEMS = {
+  coin: () => at(coinGeo, coinMat, 0, 0, 0),
+  magnet: () => at(new THREE.TorusGeometry(0.3, 0.11, 10, 20, Math.PI), std({ color: 0xe53935, emissive: 0x5a0e0c }), 0, 0, 0),
+  shield: () => at(new THREE.IcosahedronGeometry(0.36, 1), std({ color: 0x4fc3f7, emissive: 0x0b3a55, flatShading: true }), 0, 0, 0),
+};
+
+function addObstacle(g, type, lane, z) {
+  const m = OBSTACLES[type][Math.random() < 0.5 ? 0 : 1]();
+  m.position.set(lane * LANE, 0, z);
+  g.add(m);
+  g.userData.obstacles.push({ type, x: lane * LANE, z, m });
+}
+function addItem(g, type, lane, z, y) {
+  const m = ITEMS[type]();
+  m.castShadow = true;
+  m.position.set(lane * LANE, y, z);
+  g.add(m);
+  g.userData.items.push({ type, x: lane * LANE, z, y, m });
+}
+
+// Rows of obstacles along each roof. Every row is passable: either one lane is left
+// empty, or the whole row is the same low/high obstacle (jump or slide through).
+populators.push((g, first) => {
+  for (let z = first ? 32 : 8; z < g.userData.len - 7; z += 11 + speed * 0.5 + rand(0, 5)) {
+    const safe = Math.floor(rand(-1, 2));
+    const wall = Math.random() < 0.22 ? (Math.random() < 0.5 ? 'low' : 'high') : null;
+    for (let l = -1; l <= 1; l++) {
+      if (wall) addObstacle(g, wall, l, -z);
+      else if (l !== safe && Math.random() < 0.75) addObstacle(g, ['low', 'high', 'block'][Math.floor(rand(0, 3))], l, -z);
+    }
+    if (Math.random() < 0.1) addItem(g, Math.random() < 0.5 ? 'magnet' : 'shield', safe, -(z - 4), 1);
+    else for (let i = 0; i < 5; i++) {
+      const y = wall === 'low' ? [1, 1, 1.5, 2, 1.5][i] : wall === 'high' ? 0.45 : 1;
+      addItem(g, 'coin', safe, -(z - 5 + i * 1.5), y);
+    }
+  }
+});
+
+let coins = 0, shield = false, magnet = 0, crashT = 0, best = store.get('swipecity.best', 0), newBest = false;
+const score = () => Math.floor(dist) + coins * 10;
+resets.push(() => { coins = 0; shield = false; magnet = 0; newBest = false; });
+overHooks.push(() => {
+  newBest = score() > best;
+  if (newBest) { best = score(); store.set('swipecity.best', best); }
+});
+
+const bubble = at(new THREE.SphereGeometry(1.05, 20, 14),
+  new THREE.MeshBasicMaterial({ color: 0x4fc3f7, transparent: true, opacity: 0.25, depthWrite: false }), 0, 0.95, 0);
+runner.add(bubble);
+
+updates.push((dt, t) => {
+  bubble.visible = shield;
+  magnet = Math.max(0, magnet - dt);
+  if (state === 'crash' && (crashT -= dt) <= 0) gameOver();
+  const height = pl.slide > 0 ? 0.8 : 1.7;
+  for (const r of roofs) {
+    for (const it of r.userData.items) {
+      if (it.gone) continue;
+      it.m.rotation.y = t * 4;
+      if (state !== 'playing') continue;
+      const dz = Math.abs(r.position.z + it.z), dx = Math.abs(it.x - pl.x);
+      const pulled = magnet > 0 && it.type === 'coin' && dz < 3.5 && dx < 5;
+      if (pulled || (dz < 0.7 && dx < 0.8 && it.y > pl.y - 0.3 && it.y < pl.y + height + 0.3)) {
+        it.gone = true;
+        it.m.visible = false;
+        if (it.type === 'coin') coins++;
+        else if (it.type === 'magnet') magnet = 8;
+        else shield = true;
+      }
+    }
+    if (state !== 'playing') continue;
+    for (const o of r.userData.obstacles) {
+      if (o.gone || Math.abs(r.position.z + o.z) > 0.55 || Math.abs(o.x - pl.x) > 1) continue;
+      if (pl.y >= SPAN[o.type][1] || pl.y + height <= SPAN[o.type][0]) continue;
+      if (shield) { shield = false; o.gone = true; o.m.visible = false; }
+      else { state = 'crash'; crashT = 0.9; }
+    }
+  }
 });
