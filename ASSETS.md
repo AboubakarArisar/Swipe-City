@@ -25,16 +25,16 @@ Make these with an image generator. All PNG.
 Start every prompt with this style line so the set matches:
 
 ```
-photorealistic, high detail, physically based materials, golden hour sunset lighting, warm orange light and cool blue shadows
+stylized 3D game art, hand-painted look, clean shapes, soft sunny daylight, saturated colors
 ```
 
 | File | Prompt (after the style line) |
 |------|-------------------------------|
-| `roof.png` | `Seamless tileable texture of a flat city rooftop surface seen straight from above, weathered concrete and tar with fine gravel, faint seams, even lighting, no objects, no shadows, no text.` |
-| `facade.png` | `Seamless tileable texture of a modern apartment building wall seen straight on, even grid of windows, about a quarter of them lit warm from inside, no perspective, no sky, no text.` |
-| `sky.png` | `Wide panoramic sunset sky only, deep blue at the top fading to orange and pale yellow near the bottom, a few thin clouds, no buildings, no ground, no sun disc, no text.` |
+| `roof.png` | `Seamless tileable texture of a flat city rooftop surface seen straight from above, terracotta brick pavers in a running bond pattern, even lighting, no objects, no shadows, no text.` |
+| `facade.png` | `Seamless tileable texture of a painted wooden plank townhouse wall seen straight on, even grid of white-framed windows with flower boxes, no perspective, no sky, no text.` |
+| `sky.png` | `Wide panoramic daytime sky only, clear blue at the top fading to pale haze near the bottom, a few soft clouds, no buildings, no ground, no sun disc, no text.` |
 | `billboard.png` | `Flat rectangular advertising poster with bold abstract shapes and bright colors, straight-on view filling the whole frame, no text, no logos, no people.` |
-| `logo.png` | `Game logo with the words "Swipe City" in bold italic metallic 3D lettering, a small rooftop skyline worked into the letters, transparent background.` |
+| `logo.png` | `Game logo with the words "Swipe City" in bold italic playful 3D lettering, a small rooftop skyline worked into the letters, transparent background.` |
 
 `face.png` is a photo, not a generated image: a front-facing head shot, cropped square
 and close (forehead to chin), even lighting, neutral background. It becomes the runner's
