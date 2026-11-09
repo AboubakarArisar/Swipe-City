@@ -18,11 +18,13 @@ const canvas = document.getElementById('game');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xe6f0ee, 70, 260);
+scene.fog = new THREE.Fog(0xd9bda5, 55, 265);
 const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 400);
 
 function canvasTex(w, h, draw) {
@@ -31,6 +33,7 @@ function canvasTex(w, h, draw) {
   draw(c.getContext('2d'), w, h);
   const t = new THREE.CanvasTexture(c);
   t.encoding = THREE.sRGBEncoding;
+  t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   return t;
 }
@@ -44,17 +47,17 @@ function tiled(tex, rx, ry) {
 
 scene.background = canvasTex(4, 512, (c, w, h) => {
   const g = c.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, '#2f7fd0');
-  g.addColorStop(0.42, '#8cc8ee');
-  g.addColorStop(0.58, '#e6f0ee');
-  g.addColorStop(1, '#e6f0ee');
+  g.addColorStop(0, '#486982');
+  g.addColorStop(0.38, '#93a6ae');
+  g.addColorStop(0.65, '#e9c6a1');
+  g.addColorStop(1, '#d9bda5');
   c.fillStyle = g;
   c.fillRect(0, 0, w, h);
 });
 
-scene.add(new THREE.HemisphereLight(0xdcefff, 0x7f9670, 0.75));
-const sun = new THREE.DirectionalLight(0xfff0d2, 1.05);
-sun.position.set(-14, 20, 10);
+scene.add(new THREE.HemisphereLight(0xb9d7ee, 0x645548, 1.05));
+const sun = new THREE.DirectionalLight(0xffd5a3, 2.1);
+sun.position.set(-18, 24, -24);
 sun.target.position.set(0, 0, -10);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -64,44 +67,44 @@ scene.add(sun, sun.target);
 
 // ---------- textures and materials (procedural placeholders) ----------
 
-// Terracotta pavers for the rooftops you run on.
-const roofTex = canvasTex(256, 256, (c) => {
-  c.fillStyle = '#8f5540';
-  c.fillRect(0, 0, 256, 256);
-  for (let row = 0; row < 16; row++) for (let i = -1; i < 4; i++) {
-    const v = Math.floor(rand(-14, 14));
-    c.fillStyle = `rgb(${190 + v},${112 + v},${84 + v})`;
-    c.fillRect(i * 64 + (row % 2) * 32 + 1, row * 16 + 1, 62, 14);
+// Shared procedural art: no downloads, external services or extra loading time.
+const roofTex = canvasTex(512, 512, (c) => {
+  c.fillStyle = '#777a78'; c.fillRect(0, 0, 512, 512);
+  for (let i = 0; i < 24000; i++) {
+    c.fillStyle = Math.random() < 0.5 ? 'rgba(27,35,36,.12)' : 'rgba(240,229,208,.16)';
+    c.fillRect(rand(0, 512), rand(0, 512), rand(1, 3), rand(1, 3));
   }
+  c.strokeStyle = '#565e5d'; c.lineWidth = 2;
+  for (let i = 0; i <= 512; i += 128) {
+    c.beginPath(); c.moveTo(i, 0); c.lineTo(i, 512); c.stroke();
+    c.beginPath(); c.moveTo(0, i); c.lineTo(512, i); c.stroke();
+  }
+  c.strokeStyle = 'rgba(226,217,196,.22)'; c.lineWidth = 1;
+  for (let i = 3; i < 512; i += 128) c.strokeRect(i, i, 122, 122);
 });
 
-// Painted plank siding with white-framed windows and flower boxes: 2 x 2 windows per tile.
 function sidingTex(color) {
   return canvasTex(256, 256, (c) => {
-    c.fillStyle = color;
-    c.fillRect(0, 0, 256, 256);
-    c.fillStyle = 'rgba(0,0,0,0.13)';
-    for (let y = 0; y < 256; y += 10) c.fillRect(0, y, 256, 2);
-    for (const cx of [64, 192]) for (const cy of [58, 186]) {
-      c.fillStyle = '#f4efe2';
-      c.fillRect(cx - 30, cy - 40, 60, 80);
-      c.fillStyle = Math.random() < 0.3 ? '#ffd98a' : '#3b5166';
-      c.fillRect(cx - 24, cy - 34, 48, 68);
-      c.fillStyle = 'rgba(255,255,255,0.18)';
-      c.fillRect(cx - 24, cy - 34, 20, 30);
-      c.fillStyle = '#f4efe2';
-      c.fillRect(cx - 2, cy - 34, 4, 68);
-      c.fillRect(cx - 24, cy - 2, 48, 4);
-      c.fillStyle = '#6b4a2f';
-      c.fillRect(cx - 34, cy + 40, 68, 10);
-      for (let i = 0; i < 9; i++) {
-        c.fillStyle = ['#4f9a4a', '#e86a8a', '#f2c94c'][i % 3];
-        c.fillRect(cx - 32 + i * 7, cy + 35, 6, 6);
-      }
+    c.fillStyle = color; c.fillRect(0, 0, 256, 256);
+    c.fillStyle = 'rgba(0,0,0,.16)';
+    for (let y = 0; y < 256; y += 16) {
+      c.fillRect(0, y, 256, 1);
+      for (let x = (y % 32 ? 16 : 0); x < 256; x += 32) c.fillRect(x, y, 1, 16);
+    }
+    for (const x of [30, 94, 158, 222]) for (const y of [35, 119, 203]) {
+      c.fillStyle = '#3c4142'; c.fillRect(x - 20, y - 27, 40, 57);
+      c.fillStyle = '#b4b0a4'; c.fillRect(x - 18, y - 25, 36, 52);
+      c.fillStyle = Math.random() < .22 ? '#b59b72' : '#324c5a';
+      c.fillRect(x - 15, y - 22, 30, 46);
+      c.fillStyle = 'rgba(164,193,207,.3)'; c.fillRect(x - 14, y - 21, 12, 43);
+      c.fillStyle = '#777f80'; c.fillRect(x - 1, y - 22, 2, 46);
+      c.fillRect(x - 15, y, 30, 2);
+      c.fillStyle = '#c0baab'; c.fillRect(x - 21, y + 26, 42, 4);
+      if (Math.random() < .3) { c.fillStyle = '#818b89'; c.fillRect(x + 8, y + 12, 20, 15); }
     }
   });
 }
-const sidingTexs = ['#4f8a94', '#d9a441', '#b5483a', '#e6dcc8', '#6f9a6a'].map(sidingTex);
+const sidingTexs = ['#877566', '#a7977f', '#785b50', '#abb0a9', '#697c7d'].map(sidingTex);
 
 const std = (o) => new THREE.MeshStandardMaterial(Object.assign({ roughness: 0.85 }, o));
 const roofMat = std({ map: roofTex, roughness: 0.95 });
@@ -112,7 +115,7 @@ function sidingMat(i, rx, ry) {
   return m;
 }
 const trackWallMats = sidingTexs.map((_, i) => sidingMat(i, 2, 10));
-const trimMat = std({ color: 0xf2ede0 });
+const trimMat = std({ color: 0xb9b5a8 });
 const slateMat = std({ color: 0x3f4a5a, flatShading: true });
 const chimneyMat = std({ color: 0x9a4b3c });
 const planterMat = std({ color: 0x7a5233 });
@@ -144,22 +147,32 @@ const world = new THREE.Group();
 scene.add(world);
 const roofs = [];
 
-// Planters, trees and chimneys along the roof edges, outside the three lanes.
+// Detail stays beyond the playable lanes; it never changes collision bounds.
+const equipmentMat = std({ color: 0x8b9999, metalness: .55, roughness: .55 });
+const grilleMat = std({ color: 0x303e43, metalness: .35 });
+const safetyMat = std({ color: 0xe4b85e, roughness: .85 });
+const ductGeo = new THREE.CylinderGeometry(.16, .16, 1, 10);
 function decorate(g, len) {
-  for (const s of [-1, 1]) for (let z = rand(2, 6); z < len - 2; z += rand(5, 9)) {
-    const x = s * 3.72, r = Math.random();
-    if (r < 0.3) {
-      g.add(box(planterMat, 0.8, 0.45, 0.8, x, 0.225, -z), shaped(trunkGeo, trunkMat, 1, 1.5, 1, x, 1.2, -z));
-      const leaf = pick(leafMats);
-      g.add(blob(leaf, 0.75, x, 2.3, -z), blob(leaf, 0.55, x + 0.4 * s, 2.8, -z + 0.3), blob(leaf, 0.5, x - 0.1, 2.9, -z - 0.4));
-    } else if (r < 0.6) {
-      g.add(box(planterMat, 0.7, 0.4, 1.7, x, 0.2, -z));
-      const leaf = pick(leafMats);
-      for (const dz of [-0.5, 0, 0.5]) {
-        g.add(blob(leaf, 0.36, x, 0.6, -z + dz), blob(pick(flowerMats), 0.09, x - 0.2 * s, 0.86, -z + dz + 0.1));
+  for (const side of [-1, 1]) {
+    for (let z = 4; z < len - 3; z += rand(7, 11)) {
+      const x = side * 3.65;
+      if (Math.random() < .65) {
+        g.add(box(equipmentMat, .65, .65, 1.25, x, .34, -z));
+        for (let i = 0; i < 5; i++) g.add(box(grilleMat, .52, .035, .05, x, .68, -z - .4 + i * .2));
+        g.add(box(grilleMat, .04, .4, 1.05, x - side * .33, .35, -z));
+      } else {
+        g.add(shaped(ductGeo, equipmentMat, 1, .9, 1, x, .45, -z));
+        g.add(box(equipmentMat, .48, .09, .48, x, .94, -z));
       }
-    } else if (r < 0.75) {
-      g.add(box(chimneyMat, 0.6, 1.3, 0.6, x, 0.65, -z), box(trimMat, 0.76, 0.12, 0.76, x, 1.36, -z));
+    }
+    // Edge stripes and drainage channel emphasize the roof silhouette.
+    g.add(box(grilleMat, .08, .025, len - 1, side * 3.35, .015, -len / 2));
+    for (let z = 1; z < len - 1; z += 3) g.add(box(safetyMat, .12, .012, 1, side * 3.18, .015, -z));
+  }
+  for (const z of [-.22, -len + .22]) {
+    for (let x = -3; x <= 3; x += .5) {
+      const stripe = box(safetyMat, .22, .016, .3, x, .018, z);
+      stripe.rotation.y = -.35; g.add(stripe);
     }
   }
 }
@@ -190,26 +203,32 @@ function dropRoof(r) {
   r.userData.top.dispose();
 }
 
-// Backdrop: tall townhouses with pitched slate roofs, white trim and chimneys.
+// Three depth bands of city blocks, with pooled meshes recycled by the loop.
 const city = [];
-for (let i = 0; i < 70; i++) {
-  const w = rand(8, 16), d = rand(9, 20), top = rand(-16, 20), h = top + 45, roofH = w * 0.38;
+for (let i = 0; i < 84; i++) {
+  const band = Math.floor(i / 28), w = rand(7, 14), d = rand(9, 18);
+  const top = band === 0 ? rand(-10, 9) : rand(8, 44), h = top + 48;
   const b = new THREE.Group();
-  b.add(
-    box(sidingMat(i, Math.round(w / 5), Math.round(h / 6)), w, h, d, 0, top - h / 2, 0),
-    box(trimMat, w + 0.5, 0.6, d + 0.5, 0, top + 0.3, 0),
-    prism(slateMat, w + 1.2, roofH, d + 1.2, 0, top + 0.6, 0),
-    box(chimneyMat, 1.3, roofH * 0.9, 1.3, w * 0.25, top + 0.6 + roofH * 0.55, d * 0.2),
-    box(trimMat, 1.6, 0.25, 1.6, w * 0.25, top + 0.6 + roofH, d * 0.2));
+  const facade = sidingMat(i, Math.max(1, Math.round(w / 6)), Math.round(h / 9));
+  b.add(box(facade, w, h, d, 0, top - h / 2, 0),
+    box(trimMat, w + .5, .45, d + .5, 0, top + .2, 0),
+    box(roofMat, w - .4, .08, d - .4, 0, top + .47, 0));
+  for (const side of [-1, 1]) b.add(box(trimMat, .22, .65, d, side * w / 2, top + .6, 0));
+  // Mechanical penthouse and vent bank, with occasional aerial.
+  b.add(box(equipmentMat, w * .35, 1.6, d * .3, 0, top + 1.2, 0));
+  for (let j = 0; j < 3; j++) b.add(box(grilleMat, .8, .35, 1.5, -w * .3 + j, top + .7, d * .3));
+  if (i % 4 === 0) {
+    b.add(box(grilleMat, .09, 6, .09, w * .3, top + 3.4, 0));
+    b.add(box(equipmentMat, 2.5, .06, .07, w * .3, top + 5, 0));
+  }
+  // Floor cornices break up otherwise flat walls.
+  for (let y = top - 7; y > -40; y -= 9) b.add(box(trimMat, w + .12, .12, d + .12, 0, y, 0));
   b.traverse((m) => { m.castShadow = m.receiveShadow = false; });
-  b.position.set((i % 2 ? 1 : -1) * (ROOF_W / 2 + 6 + w / 2 + rand(0, 42)), 0, 40 - rand(0, 320));
-  scene.add(b);
-  city.push(b);
+  b.position.set((i % 2 ? 1 : -1) * (13 + band * 27 + rand(0, 12)), 0, 40 - (i % 28) * 12);
+  scene.add(b); city.push(b);
 }
-const water = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), std({ color: 0x3aa9b8, roughness: 0.25 }));
-water.rotation.x = -Math.PI / 2;
-water.position.y = -40;
-scene.add(water);
+const water = new THREE.Mesh(new THREE.PlaneGeometry(750, 750), std({ color: 0x414d50, roughness: 1 }));
+water.rotation.x = -Math.PI / 2; water.position.y = -43; scene.add(water);
 
 // ---------- game state and loop ----------
 
@@ -382,6 +401,25 @@ function makeArm(side) {
   return { shoulder, elbow };
 }
 const legL = makeLeg(-1), legR = makeLeg(1), armL = makeArm(-1), armR = makeArm(1);
+// Tailored silhouette: hood, backpack, straps, cuffs and layered trainers.
+const fabricMat = std({ color: 0x34464c, roughness: .98 });
+const seamMat = std({ color: 0xd3ccae, roughness: .85 });
+part(capsule(.15, .18), fabricMat, torso, 0, .36, -.17).scale.set(1.15, 1, .65);
+part(new THREE.TorusGeometry(.13, .045, 8, 20), topMat, torso, 0, .65, -.015).rotation.x = Math.PI / 2;
+for (const side of [-1, 1]) {
+  const strap = part(unitBox, fabricMat, torso, side * .14, .39, .16);
+  strap.scale.set(.045, .42, .035);
+  part(new THREE.SphereGeometry(.046, 12, 8), skinMat, torso, side * .2, .93, 0);
+}
+const zip = part(unitBox, seamMat, torso, 0, .36, -.28); zip.scale.set(.012, .25, .012);
+for (const leg of [legL, legR]) {
+  const sole = part(unitBox, fabricMat, leg.knee, 0, -.46, .05); sole.scale.set(.145, .035, .29);
+  for (let i = 0; i < 3; i++) {
+    const lace = part(unitBox, seamMat, leg.knee, 0, -.365, .06 + i * .045);
+    lace.scale.set(.09, .012, .014);
+  }
+}
+
 
 applyLook();
 if (look.face) setFaceImage(look.face);
@@ -449,15 +487,33 @@ updates.push((dt, t) => {
   armL.elbow.rotation.x = armR.elbow.rotation.x = pose[6];
   torso.rotation.x = pose[7];
   body.rotation.x = pose[8];
+  body.rotation.z = THREE.MathUtils.lerp(body.rotation.z, state === 'playing' ? -(pl.lane * LANE - pl.x) * .09 : 0, k);
   body.position.y = pose[9];
 
   // On the title screen the runner faces the camera up close; in play we follow from behind.
   const title = state === 'title', ck = Math.min(1, dt * 5);
   runner.position.set(pl.x, pl.y, 0);
   runner.rotation.y += ((title ? 0 : Math.PI) - runner.rotation.y) * Math.min(1, dt * 8);
-  camera.position.lerp(title ? v3.set(0, 1.6, 2.7) : v3.set(pl.x * 0.5, 4.4, 7.5), ck);
+  camera.position.lerp(title ? v3.set(0, 1.6, 2.7) : v3.set(pl.x * 0.5, 4.1 + (state === 'playing' && pl.y === 0 && !pl.slide ? Math.sin(phase * 2) * .018 : 0), 7.5), ck);
   camLook.lerp(title ? v3.set(0, 1.15, 0) : v3.set(pl.x * 0.3, 1.2, -8), ck);
   camera.lookAt(camLook);
+});
+
+// Soft contact shadow anchors the feet even on devices with coarse shadow maps.
+const contactTex = canvasTex(64, 64, (c) => {
+  const gradient = c.createRadialGradient(32, 32, 2, 32, 32, 30);
+  gradient.addColorStop(0, 'rgba(12,22,28,.45)');
+  gradient.addColorStop(1, 'rgba(12,22,28,0)');
+  c.fillStyle = gradient; c.fillRect(0, 0, 64, 64);
+});
+const contactMat = new THREE.MeshBasicMaterial({ map: contactTex, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 });
+const contact = new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1.3), contactMat);
+contact.rotation.x = -Math.PI / 2; scene.add(contact);
+updates.push(() => {
+  contact.position.set(pl.x, .025, 0);
+  contact.visible = state !== 'falling' && state !== 'over';
+  contactMat.opacity = Math.max(.08, 1 - pl.y * .25);
+  contact.scale.setScalar(1 + Math.max(0, pl.y) * .15);
 });
 
 // ---------- obstacles, coins, power-ups ----------
@@ -512,11 +568,41 @@ const SPAN = { low: [0, 0.78], high: [1.15, 3.2], block: [0, 3.2] };
 
 const coinGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.07, 20).rotateX(Math.PI / 2);
 const coinMat = std({ color: 0xffc933, roughness: 0.35, metalness: 0.5, emissive: 0x6b4500 });
+const magnetGeo = new THREE.TorusGeometry(0.3, 0.11, 10, 20, Math.PI);
+const magnetMat = std({ color: 0xe53935, emissive: 0x5a0e0c });
+const shieldGeo = new THREE.IcosahedronGeometry(0.36, 1);
+const shieldMat = std({ color: 0x4fc3f7, emissive: 0x0b3a55, flatShading: true });
 const ITEMS = {
   coin: () => at(coinGeo, coinMat, 0, 0, 0),
-  magnet: () => at(new THREE.TorusGeometry(0.3, 0.11, 10, 20, Math.PI), std({ color: 0xe53935, emissive: 0x5a0e0c }), 0, 0, 0),
-  shield: () => at(new THREE.IcosahedronGeometry(0.36, 1), std({ color: 0x4fc3f7, emissive: 0x0b3a55, flatShading: true }), 0, 0, 0),
+  magnet: () => at(magnetGeo, magnetMat, 0, 0, 0),
+  shield: () => at(shieldGeo, shieldMat, 0, 0, 0),
 };
+
+// A fixed particle pool keeps repeated collections allocation-free.
+const sparkGeo = new THREE.SphereGeometry(.035, 5, 4);
+const sparkMat = new THREE.MeshBasicMaterial({ color: 0xffd784 });
+const sparks = Array.from({ length: 36 }, () => {
+  const m = new THREE.Mesh(sparkGeo, sparkMat); m.visible = false; scene.add(m);
+  return { m, life: 0, vx: 0, vy: 0, vz: 0 };
+});
+let nextSpark = 0;
+function collectBurst(x, y, z) {
+  for (let i = 0; i < 6; i++) {
+    const p = sparks[nextSpark++ % sparks.length];
+    p.m.position.set(x, y, z); p.life = .35; p.m.visible = true;
+    p.vx = rand(-1.5, 1.5); p.vy = rand(1, 3); p.vz = rand(-1, 1);
+  }
+}
+resets.push(() => sparks.forEach(p => { p.life = 0; p.m.visible = false; }));
+updates.push((dt) => {
+  for (const p of sparks) {
+    if (p.life <= 0) continue;
+    p.life -= dt; p.m.visible = p.life > 0;
+    p.vy -= dt * 8;
+    p.m.position.x += p.vx * dt; p.m.position.y += p.vy * dt; p.m.position.z += p.vz * dt;
+    p.m.scale.setScalar(Math.max(0, p.life / .35));
+  }
+});
 
 function addObstacle(g, type, lane, z) {
   const m = OBSTACLES[type][Math.random() < 0.5 ? 0 : 1]();
@@ -580,7 +666,7 @@ updates.push((dt, t) => {
       if (pulled || (dz < 0.7 && dx < 0.8 && it.y > pl.y - 0.3 && it.y < pl.y + height + 0.3)) {
         it.gone = true;
         it.m.visible = false;
-        if (it.type === 'coin') coins++;
+        if (it.type === 'coin') { coins++; collectBurst(it.x, it.y, r.position.z + it.z); }
         else if (it.type === 'magnet') magnet = 8;
         else shield = true;
       }
@@ -673,13 +759,22 @@ function useTexture(path, apply) {
   if (location.protocol === 'file:') return;
   new THREE.TextureLoader().load(path, (t) => {
     t.encoding = THREE.sRGBEncoding;
+  t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
     apply(t);
   }, undefined, () => {});
 }
 const setMap = (mat, t) => { mat.map = t; mat.needsUpdate = true; };
 
-useTexture('assets/world/roof.png', (t) => setMap(roofMat, t)); // roofs spawned from now on use it
+useTexture('assets/world/roof.png', (t) => {
+  const previous = roofMat.map;
+  setMap(roofMat, t);
+  for (const r of roofs) {
+    r.userData.top.map.dispose();
+    setMap(r.userData.top, tiled(t, 4, r.userData.len / 2));
+  }
+  previous.dispose();
+});
 useTexture('assets/world/facade.png', (t) => {
   for (const m of sidingMats) setMap(m, tiled(t, m.map.repeat.x, m.map.repeat.y));
 });
