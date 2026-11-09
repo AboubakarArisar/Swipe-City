@@ -111,7 +111,7 @@ const roofs = [];
 // A roof is a group whose local z = 0 is its near edge; it extends to z = -len.
 function spawnRoof(first) {
   const last = roofs[roofs.length - 1];
-  const len = first ? 62 : rand(26, 48);
+  const len = first ? 62 : rand(26, 48) + speed * 1.5;
   const g = new THREE.Group();
   g.position.z = last ? last.position.z - last.userData.len - rand(3, 4.8) : 12;
   g.userData = { len, obstacles: [], items: [] };
@@ -461,7 +461,10 @@ function addItem(g, type, lane, z, y) {
 // Rows of obstacles along each roof. Every row is passable: either one lane is left
 // empty, or the whole row is the same low/high obstacle (jump or slide through).
 populators.push((g, first) => {
-  for (let z = first ? 32 : 8; z < g.userData.len - 7; z += 11 + speed * 0.5 + rand(0, 5)) {
+  // A jump covers about 0.67 * speed, so keep rows that far from both roof edges:
+  // otherwise a gap jump lands on a row, or a jump over a row lands in the gap.
+  const sp = speed + 3, edge = sp * 0.75;
+  for (let z = first ? 32 : 6 + edge; z < g.userData.len - 4 - edge; z += 11 + sp * 0.5 + rand(0, 5)) {
     const safe = Math.floor(rand(-1, 2));
     const wall = Math.random() < 0.22 ? (Math.random() < 0.5 ? 'low' : 'high') : null;
     for (let l = -1; l <= 1; l++) {
@@ -517,3 +520,71 @@ updates.push((dt, t) => {
     }
   }
 });
+
+// ---------- screens, HUD, pause, touch, share ----------
+
+const $ = (id) => document.getElementById(id);
+let shown = null;
+
+updates.push(() => {
+  if (shown !== state) {
+    shown = state;
+    $('title').hidden = state !== 'title';
+    $('over').hidden = state !== 'over';
+    $('paused').hidden = state !== 'paused';
+    $('hud').hidden = state === 'title';
+    if (state === 'over') {
+      $('final').textContent = `${Math.floor(dist).toLocaleString()}m · ${coins} coins · score ${score().toLocaleString()}`;
+      $('bestLine').textContent = newBest ? 'New best!' : `Best ${best.toLocaleString()}`;
+      $('share').textContent = 'Share score';
+    }
+    if (document.activeElement) document.activeElement.blur(); // keep Space/Enter off hidden buttons
+  }
+  $('dist').textContent = Math.floor(dist).toLocaleString() + 'm';
+  $('coins').textContent = coins;
+  $('power').textContent = [shield && 'Shield', magnet > 0 && `Magnet ${Math.ceil(magnet)}s`].filter(Boolean).join(' · ');
+});
+
+function pause() { if (state === 'playing') state = 'paused'; }
+function resume() { if (state === 'paused') state = 'playing'; }
+$('play').onclick = $('again').onclick = start;
+$('home').onclick = () => { reset(); state = 'title'; };
+$('pauseBtn').onclick = pause;
+$('resume').onclick = resume;
+document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+addEventListener('keydown', (e) => {
+  if (e.code === 'Escape' || e.code === 'KeyP') (state === 'paused' ? resume : pause)();
+});
+
+$('share').onclick = () => {
+  const text = `I ran ${Math.floor(dist).toLocaleString()}m in Swipe City 🏙️ — can you beat me?`;
+  const url = location.href;
+  if (navigator.share) return navigator.share({ text, url }).catch(() => {});
+  const say = (msg) => { $('share').textContent = msg; };
+  if (!navigator.clipboard) return say('Sharing not supported');
+  navigator.clipboard.writeText(`${text} ${url}`).then(() => say('Copied!'), () => say('Copy failed'));
+};
+
+// One action per swipe, fired as soon as the finger has moved far enough.
+let touch = null;
+addEventListener('touchstart', (e) => { touch = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }, { passive: true });
+addEventListener('touchmove', (e) => {
+  if (state === 'playing') e.preventDefault();
+  if (!touch) return;
+  const dx = e.touches[0].clientX - touch.x, dy = e.touches[0].clientY - touch.y;
+  if (Math.max(Math.abs(dx), Math.abs(dy)) < 28) return;
+  act(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'slide' : 'jump'));
+  touch = null;
+}, { passive: false });
+
+// Customize panel
+for (const k of ['skin', 'hair', 'top', 'pants']) {
+  const el = $('c-' + k);
+  el.value = look[k];
+  el.oninput = () => { look[k] = el.value; applyLook(); store.set('swipecity.look', look); };
+}
+$('facePhoto').onchange = (e) => {
+  const f = e.target.files[0];
+  if (f && f.type.startsWith('image/')) setFaceImage(URL.createObjectURL(f), true);
+};
+$('faceClear').onclick = () => { $('facePhoto').value = ''; setFaceImage(null); };

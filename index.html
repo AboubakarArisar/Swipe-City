@@ -9,6 +9,54 @@
 </head>
 <body>
   <canvas id="game"></canvas>
+
+  <div id="hud" hidden>
+    <span id="dist">0m</span>
+    <span id="power"></span>
+    <span id="coins">0</span>
+    <button id="pauseBtn" aria-label="Pause">II</button>
+  </div>
+
+  <section id="title" class="screen">
+    <header>
+      <h1 id="logoText">Swipe City</h1>
+      <img id="logo" alt="Swipe City" hidden>
+      <p class="tag">Don't look down.</p>
+    </header>
+    <footer>
+      <button id="play" class="big">Play</button>
+      <details id="custom">
+        <summary>Customize runner</summary>
+        <div class="grid">
+          <label>Skin <input type="color" id="c-skin"></label>
+          <label>Hair <input type="color" id="c-hair"></label>
+          <label>Top <input type="color" id="c-top"></label>
+          <label>Pants <input type="color" id="c-pants"></label>
+        </div>
+        <label class="file">Use your face
+          <input type="file" id="facePhoto" accept="image/*">
+        </label>
+        <button id="faceClear">Remove photo</button>
+        <p class="note">Use a front-facing photo cropped close to the face. It stays on this device.</p>
+      </details>
+      <p class="note">Arrows / WASD or swipe. Space jumps.</p>
+    </footer>
+  </section>
+
+  <section id="over" class="screen center" hidden>
+    <h2>Game over</h2>
+    <p id="final"></p>
+    <p id="bestLine"></p>
+    <button id="again" class="big">Run again</button>
+    <button id="share">Share score</button>
+    <button id="home">Change runner</button>
+  </section>
+
+  <section id="paused" class="screen center" hidden>
+    <h2>Paused</h2>
+    <button id="resume" class="big">Resume</button>
+  </section>
+
   <script src="vendor/three.min.js"></script>
   <script src="game.js"></script>
 </body>
