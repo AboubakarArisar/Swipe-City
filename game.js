@@ -186,3 +186,202 @@ camera.lookAt(0, 1.2, -8);
 
 // Boot after every section below has registered its hooks.
 addEventListener('load', () => { resize(); reset(); requestAnimationFrame(frame); });
+
+// ---------- runner: built from primitives so every part can be recolored ----------
+
+const look = Object.assign(
+  { skin: '#c68642', hair: '#2b1b12', top: '#e8b923', pants: '#27364a', face: null },
+  store.get('swipecity.look', {}));
+
+const skinMat = std({ roughness: 0.7 }), hairMat = std({}), topMat = std({}), pantsMat = std({});
+const shoeMat = std({ color: 0xf2f2f2 });
+
+// The face is a canvas texture: a drawn default, or a photo blended into the skin tone.
+const faceCanvas = document.createElement('canvas');
+faceCanvas.width = faceCanvas.height = 256;
+const faceTex = new THREE.CanvasTexture(faceCanvas);
+faceTex.encoding = THREE.sRGBEncoding;
+const faceMat = std({ map: faceTex, roughness: 0.7 });
+let faceImg = null; // custom photo, or a default face image from assets/
+
+function paintFace() {
+  const c = faceCanvas.getContext('2d'), s = 256;
+  c.fillStyle = look.skin;
+  c.fillRect(0, 0, s, s);
+  if (faceImg) {
+    const tmp = document.createElement('canvas');
+    tmp.width = tmp.height = s;
+    const t = tmp.getContext('2d');
+    const side = Math.min(faceImg.width, faceImg.height); // center-crop to a square
+    t.drawImage(faceImg, (faceImg.width - side) / 2, (faceImg.height - side) / 2, side, side, 0, 0, s, s);
+    const fade = t.createRadialGradient(s / 2, s / 2, s * 0.3, s / 2, s / 2, s * 0.5);
+    fade.addColorStop(0, '#000');
+    fade.addColorStop(1, 'transparent');
+    t.globalCompositeOperation = 'destination-in';
+    t.fillStyle = fade;
+    t.fillRect(0, 0, s, s);
+    c.drawImage(tmp, 0, 0);
+  } else {
+    c.fillStyle = '#1d1a1a';
+    for (const x of [92, 164]) { c.beginPath(); c.ellipse(x, 108, 9, 12, 0, 0, 7); c.fill(); }
+    c.fillStyle = '#fff';
+    for (const x of [95, 167]) { c.beginPath(); c.arc(x, 104, 3, 0, 7); c.fill(); }
+    c.strokeStyle = '#1d1a1a';
+    c.lineWidth = 5;
+    c.lineCap = 'round';
+    c.beginPath(); c.arc(128, 150, 26, 0.25 * Math.PI, 0.75 * Math.PI); c.stroke();
+    c.beginPath(); c.moveTo(78, 84); c.lineTo(104, 80); c.moveTo(152, 80); c.lineTo(178, 84); c.stroke();
+  }
+  faceTex.needsUpdate = true;
+}
+
+function applyLook() {
+  skinMat.color.set(look.skin);
+  hairMat.color.set(look.hair);
+  topMat.color.set(look.top);
+  pantsMat.color.set(look.pants);
+  paintFace();
+}
+
+// keep = true stores the photo as this player's face (cropped to 256px, in this browser only).
+function setFaceImage(src, keep) {
+  if (!src) { faceImg = null; look.face = null; store.set('swipecity.look', look); return paintFace(); }
+  const im = new Image();
+  im.onload = () => {
+    faceImg = im;
+    paintFace();
+    if (keep) {
+      const c = document.createElement('canvas');
+      c.width = c.height = 256;
+      const side = Math.min(im.width, im.height);
+      c.getContext('2d').drawImage(im, (im.width - side) / 2, (im.height - side) / 2, side, side, 0, 0, 256, 256);
+      look.face = c.toDataURL('image/jpeg', 0.85);
+      store.set('swipecity.look', look);
+    }
+  };
+  im.src = src;
+}
+
+const runner = new THREE.Group();
+scene.add(runner);
+const body = new THREE.Group(); // pivot at the feet; the model faces +z
+runner.add(body);
+
+function part(geo, mat, parent, x, y, z) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  m.castShadow = true;
+  parent.add(m);
+  return m;
+}
+function pivot(parent, x, y, z) {
+  const p = new THREE.Group();
+  p.position.set(x, y, z);
+  parent.add(p);
+  return p;
+}
+const capsule = (r, len) => new THREE.CapsuleGeometry(r, len, 4, 12);
+
+part(new THREE.SphereGeometry(0.2, 16, 12), pantsMat, body, 0, 0.92, 0).scale.set(1.2, 0.7, 0.9);
+const torso = pivot(body, 0, 0.92, 0);
+part(capsule(0.2, 0.36), topMat, torso, 0, 0.36, 0).scale.set(1.25, 1, 0.85);
+part(new THREE.CylinderGeometry(0.07, 0.08, 0.14, 12), skinMat, torso, 0, 0.72, 0);
+part(new THREE.SphereGeometry(0.2, 24, 16), skinMat, torso, 0, 0.93, 0);
+// Curved patch on the front of the head that carries the face texture.
+part(new THREE.SphereGeometry(0.203, 24, 16, Math.PI / 2 - 1, 2, 0.45, 1.9), faceMat, torso, 0, 0.93, 0);
+part(new THREE.SphereGeometry(0.213, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.52), hairMat, torso, 0, 0.93, 0).rotation.x = -0.85;
+
+function makeLeg(side) {
+  const hip = pivot(body, side * 0.11, 0.9, 0);
+  part(capsule(0.085, 0.3), pantsMat, hip, 0, -0.22, 0);
+  const knee = pivot(hip, 0, -0.44, 0);
+  part(capsule(0.07, 0.3), pantsMat, knee, 0, -0.2, 0);
+  const shoe = part(unitBox, shoeMat, knee, 0, -0.415, 0.05);
+  shoe.scale.set(0.13, 0.09, 0.28);
+  return { hip, knee };
+}
+function makeArm(side) {
+  const shoulder = pivot(torso, side * 0.31, 0.5, 0);
+  part(capsule(0.065, 0.24), topMat, shoulder, 0, -0.17, 0);
+  const elbow = pivot(shoulder, 0, -0.34, 0);
+  part(capsule(0.055, 0.22), skinMat, elbow, 0, -0.15, 0);
+  return { shoulder, elbow };
+}
+const legL = makeLeg(-1), legR = makeLeg(1), armL = makeArm(-1), armR = makeArm(1);
+
+applyLook();
+if (look.face) setFaceImage(look.face);
+
+// ---------- player movement ----------
+
+const pl = { lane: 0, x: 0, y: 0, vy: 0, slide: 0 };
+resets.push(() => Object.assign(pl, { lane: 0, x: 0, y: 0, vy: 0, slide: 0 }));
+
+function act(a) {
+  if (state !== 'playing') return;
+  if (a === 'left') pl.lane = Math.max(-1, pl.lane - 1);
+  if (a === 'right') pl.lane = Math.min(1, pl.lane + 1);
+  if (a === 'jump' && pl.y === 0) { pl.vy = 10; pl.slide = 0; }
+  if (a === 'slide') { if (pl.y > 0) pl.vy = -16; pl.slide = 0.7; }
+}
+
+const KEYS = {
+  ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
+  ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', ArrowDown: 'slide', KeyS: 'slide',
+};
+addEventListener('keydown', (e) => {
+  if (e.target.tagName === 'INPUT') return;
+  if ((e.code === 'Space' || e.code === 'Enter') && (state === 'title' || state === 'over')) {
+    e.preventDefault();
+    return start();
+  }
+  if (KEYS[e.code]) { e.preventDefault(); if (!e.repeat) act(KEYS[e.code]); }
+});
+
+// Pose = [legL, kneeL, legR, kneeR, armL, armR, elbow, torso lean, body tilt, body height].
+// Positive hip/shoulder angles swing backward; body tilt < 0 leans back.
+const pose = new Array(10).fill(0);
+let phase = 0;
+const camLook = new THREE.Vector3(0, 1.2, -8), v3 = new THREE.Vector3();
+
+updates.push((dt, t) => {
+  if (state === 'playing' || state === 'falling') {
+    pl.x += (pl.lane * LANE - pl.x) * Math.min(1, dt * 14);
+    pl.vy -= 30 * dt;
+    pl.y += pl.vy * dt;
+    pl.slide = Math.max(0, pl.slide - dt);
+    const onRoof = roofs.some((r) => r.position.z + 0.35 >= 0 && r.position.z - r.userData.len - 0.35 <= 0);
+    if (state === 'playing' && pl.y <= 0) {
+      if (onRoof) { pl.y = 0; pl.vy = 0; } else state = 'falling';
+    }
+    if (state === 'falling' && pl.y < -16) gameOver();
+  }
+
+  phase += dt * speed * 0.85;
+  const s = Math.sin(phase), c = Math.cos(phase);
+  let p;
+  if (state === 'title') p = [0, 0, 0, 0, 0.06, 0.06, -0.15, Math.sin(t * 1.6) * 0.02, 0, 0];
+  else if (state === 'crash' || state === 'over') p = [-0.4, 0.6, 0.2, 0.9, -1.2, -0.9, -0.6, 0, -1.45, 0.18];
+  else if (state === 'falling') p = [-0.5, 1, 0.4, 0.6, -2.6, -2.8, -0.3, 0.3, 0.3, 0];
+  else if (pl.slide > 0) p = [-1.25, 0.15, -0.9, 1.1, 0.5, 0.3, -0.5, 0.25, -1.15, 0.1];
+  else if (pl.y > 0) p = [-1.1, 1.5, 0.25, 1, -2.2, 0.7, -1, 0.15, 0, 0];
+  else p = [s * 0.95, 0.25 + Math.max(0, -c) * 1.3, -s * 0.95, 0.25 + Math.max(0, c) * 1.3,
+    -s * 0.8, s * 0.8, -1.4, 0.2, 0, Math.abs(c) * 0.05];
+  const k = Math.min(1, dt * 18);
+  for (let i = 0; i < 10; i++) pose[i] += (p[i] - pose[i]) * k;
+  legL.hip.rotation.x = pose[0]; legL.knee.rotation.x = pose[1];
+  legR.hip.rotation.x = pose[2]; legR.knee.rotation.x = pose[3];
+  armL.shoulder.rotation.x = pose[4]; armR.shoulder.rotation.x = pose[5];
+  armL.elbow.rotation.x = armR.elbow.rotation.x = pose[6];
+  torso.rotation.x = pose[7];
+  body.rotation.x = pose[8];
+  body.position.y = pose[9];
+
+  // On the title screen the runner faces the camera up close; in play we follow from behind.
+  const title = state === 'title', ck = Math.min(1, dt * 5);
+  runner.position.set(pl.x, pl.y, 0);
+  runner.rotation.y += ((title ? 0 : Math.PI) - runner.rotation.y) * Math.min(1, dt * 8);
+  camera.position.lerp(title ? v3.set(0, 1.7, 3.4) : v3.set(pl.x * 0.5, 4.4, 7.5), ck);
+  camLook.lerp(title ? v3.set(0, 1.15, 0) : v3.set(pl.x * 0.3, 1.2, -8), ck);
+  camera.lookAt(camLook);
+});
